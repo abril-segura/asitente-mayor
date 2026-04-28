@@ -1,0 +1,7 @@
+SpeechRecognition
+pygame
+edge-tts
+opencv-python
+Pillow
+pytesseract
+google-genai
