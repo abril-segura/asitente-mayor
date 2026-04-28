@@ -39,7 +39,11 @@ def hablar(texto):
             return audio_data
 
         try:
-            # hilo asíncrono seguro para no congelar la pantalla de Tkinter
+            # DOCUMENTACION DE ARQUITECTURA:
+            # Se implementa un hilo asíncrono (asyncio) dentro de un hilo secundario (threading).
+            # Esto es crucial para la usabilidad: evita que el hilo principal (MainThread) de Tkinter 
+            # se bloquee mientras se descarga y reproduce el audio neuronal. 
+            # Así, la interfaz gráfica sigue respondiendo a los toques del usuario sin "congelarse".
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             data = loop.run_until_complete(get_audio())
@@ -58,6 +62,12 @@ class AppAsistenteMayor(tk.Tk):
         self.title("Asistente Personal")
         self.geometry("1000x750")
         
+        # DOCUMENTACIÓN DE DISEÑO DE INTERFAZ (UX):
+        # Se definen dos paletas de colores mediante diccionarios. 
+        # La paleta base utiliza tonos cálidos y de bajo contraste para no fatigar la vista del adlto.
+        # La 'paleta_contraste' se implementa como un requerimiento de accesibilidad visual, 
+        # permitiendo a usuarios con cataratas o visión reducida distinguir claramente los 
+        # elementos (fondo negro puro #000000 con texto amarillo/cian, para que se pueda distinguir mejor).
         self.paleta = {
             "fondo": "#fff5e6",        
             "texto": "#2d3748",        
@@ -190,6 +200,10 @@ class AppAsistenteMayor(tk.Tk):
             frame.place(x=0, y=0, relwidth=1, relheight=1)
 
     def mostrar_pantalla(self, nombre_pagina):
+        # DOCUMENTACIÓN DE ARQUITECTURA:
+        # Cada 'Frame' representa un estado del sistema. Esta función maneja las transiciones
+        # asegurando que solo un estado (pantalla) esté activo y visible (tkraise) a la vez, 
+        # mientras el 'estado anterior' queda en pausa pero conserva sus datos en memoria.
         self.pantalla_actual = nombre_pagina
         frame = self.frames[nombre_pagina]
         frame.tkraise()
@@ -215,6 +229,11 @@ class AppAsistenteMayor(tk.Tk):
 
 
 # --- PLANTILLA BASE PARA PANTALLAS ---
+# DOCUMENTACIÓN DE ESTRUCTURA:
+# Se aplica el paradigma de Programación Orientada a Objetos mediante la clase PantallaBase.
+# Aprovecho la herencia para encapsular los atributos comunes (fuentes, colores, barra superior) 
+# y los comportamientos base (método al_mostrar). Así, cada pantalla individual (subclase) 
+# hereda esta configuración, reduciendo la redundancia de código y facilitando el mantenimiento.
 class PantallaBase(tk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent, bg=controller.estilo_actual["fondo"])
@@ -782,6 +801,9 @@ class PantallaAgregarMedicamento(PantallaBase):
 
     def procesar_ocr(self, ruta):
         try:
+            # Se utiliza Pytesseract para extraer el texto. 
+            # Se implementa una limpieza de datos (list comprehension) para descartar 
+            # lecturas erróneas menores a 3 caracteres (ruido en la imagen).
             texto = pytesseract.image_to_string(Image.open(ruta), lang='spa')
             lineas = [l.strip() for l in texto.split('\n') if len(l.strip()) > 3]
             if lineas:
@@ -790,6 +812,9 @@ class PantallaAgregarMedicamento(PantallaBase):
                 hablar("Leí la caja. Verifique los datos y dicte los días y horas.")
             else: hablar("No pude leer el texto. Intente acercar más la caja o dicte el nombre.")
         except Exception:
+            # MANEJO DE EXCEPCIONES: Si el OCR falla por mala iluminación o enfoque, 
+            # el sistema no colapsa (crashea), sino que realiza un 'fallback' elegante 
+            # informando al usuario mediante voz para que utilice un método alternativo de entrada.
             hablar("Error de lectura. Por favor, escriba o dicte el medicamento.")
         self.config(cursor="")
 
@@ -821,6 +846,11 @@ class PantallaAgregarMedicamento(PantallaBase):
                     texto_bruto = r.recognize_google(r.listen(source, timeout=5, phrase_time_limit=5), language="es-MX").lower().strip()
                     
                     # --- FILTRO INTELIGENTE PARA NÚMEROS ---
+                    # DOCUMENTACIÓN DE USABILIDAD (Reducción de Tasa de Error):
+                    # Para usuarios mayores, la entrada de datos por voz puede generar inconsistencias.
+                    # Se implementa un mapeo y filtrado mediante Expresiones Regulares (RegEx) para extraer 
+                    # exclusivamente valores numéricos cuando el campo lo requiere (ej. horas o días).
+                    # Esto disminuye drásticamente la tasa de error del usuario y evita fallos al guardar el objeto.
                     if es_numerico:
                         mapa = {
                             "un": "1", "uno": "1", "una": "1", "dos": "2", "tres": "3", "cuatro": "4",
